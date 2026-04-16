@@ -454,9 +454,8 @@ async def upload_files(request: Request, files: List[UploadFile] = File(...)):
             results = extraction.extract_data_from_pdf(pdf_file, file.filename)
             combined_results.extend(results)
         except Exception as e:
-            # In a real app we might want to return partial errors, 
-            # for now we just log and continue or raise generic error
-            print(f"Error processing {file.filename}: {e}")
+            import traceback
+            traceback.print_exc()
             raise HTTPException(status_code=500, detail=f"Error processing {file.filename}: {str(e)}")
 
     return {"data": combined_results}

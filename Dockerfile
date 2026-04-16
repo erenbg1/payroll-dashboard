@@ -14,6 +14,9 @@ WORKDIR /app
 
 RUN apt-get update && apt-get install -y \
     build-essential \
+    libpoppler-cpp-dev \
+    pkg-config \
+    poppler-utils \
     && rm -rf /var/lib/apt/lists/*
 
 COPY backend/requirements.txt /app/backend/requirements.txt
