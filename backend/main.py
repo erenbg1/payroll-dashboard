@@ -313,7 +313,7 @@ def _dataset_filenames():
         [
             filename
             for filename in os.listdir(DATA_STORE_DIR)
-            if filename.endswith(".json") and filename != os.path.basename(HISTORY_LOG_PATH)
+            if filename.endswith(".json") and filename != os.path.basename(AUDIT_LOG_PATH)
         ]
     )
 

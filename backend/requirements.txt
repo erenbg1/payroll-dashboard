@@ -3,3 +3,4 @@ uvicorn[standard]==0.34.0
 python-multipart==0.0.20
 pdfplumber==0.11.6
 pandas==2.2.3
+aiofiles==24.1.0
