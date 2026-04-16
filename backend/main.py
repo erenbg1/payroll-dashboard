@@ -1,6 +1,8 @@
 from datetime import datetime
 from fastapi import FastAPI, UploadFile, File, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from typing import List, Dict
 import pandas as pd
 import io
@@ -24,6 +26,8 @@ class LoginRequest(BaseModel):
 
 DATA_STORE_DIR = os.path.join(os.path.dirname(__file__), "data_store")
 AUDIT_LOG_PATH = os.path.join(DATA_STORE_DIR, "audit_log.jsonl")
+FRONTEND_DIST_DIR = os.path.normpath(os.path.join(os.path.dirname(__file__), "..", "frontend", "dist"))
+FRONTEND_INDEX_PATH = os.path.join(FRONTEND_DIST_DIR, "index.html")
 DASHBOARD_PASSWORD = os.getenv("DASHBOARD_PASSWORD")
 AUTH_TOKEN_SECRET = os.getenv("AUTH_TOKEN_SECRET", "trel-payroll-dashboard-secret")
 AUTH_TOKEN_TTL_SECONDS = int(os.getenv("AUTH_TOKEN_TTL_SECONDS", "43200"))
@@ -51,12 +55,18 @@ app.add_middleware(
     allow_headers=["Authorization", "Content-Type"],
 )
 
+if os.path.isdir(os.path.join(FRONTEND_DIST_DIR, "assets")):
+    app.mount("/assets", StaticFiles(directory=os.path.join(FRONTEND_DIST_DIR, "assets")), name="frontend-assets")
+
 @app.get("/health")
 def health_check():
     return {"status": "ok"}
 
 @app.get("/")
 def read_root():
+    frontend_response = _serve_frontend_file()
+    if frontend_response is not None:
+        return frontend_response
     return {"message": "Payroll API is running. Please use the frontend to interact."}
 
 
@@ -68,6 +78,19 @@ def _get_client_ip(request: Request):
     if remote_addr:
         return remote_addr
     return request.client.host if request.client else "-"
+
+
+def _serve_frontend_file(path: str = ""):
+    if not os.path.isfile(FRONTEND_INDEX_PATH):
+        return None
+
+    normalized_path = path.lstrip("/")
+    if normalized_path:
+        requested_path = os.path.normpath(os.path.join(FRONTEND_DIST_DIR, normalized_path))
+        if requested_path.startswith(FRONTEND_DIST_DIR) and os.path.isfile(requested_path):
+            return FileResponse(requested_path)
+
+    return FileResponse(FRONTEND_INDEX_PATH)
 
 
 def _get_user_agent(request: Request):
@@ -532,6 +555,14 @@ async def delete_dataset(dataset_id: str, request: Request):
         return {"message": f"Deleted dataset {dataset['version']}"}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/{full_path:path}")
+async def serve_frontend(full_path: str):
+    frontend_response = _serve_frontend_file(full_path)
+    if frontend_response is not None:
+        return frontend_response
+    raise HTTPException(status_code=404, detail="Not found")
 
 if __name__ == "__main__":
     import uvicorn
