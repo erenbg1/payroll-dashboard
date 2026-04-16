@@ -537,7 +537,7 @@ function App() {
                       <th>Time</th>
                       <th>Action</th>
                       <th>IP Address</th>
-                      <th>User Agent</th>
+                      <th className="mobile-hide">User Agent</th>
                     </tr>
                   </thead>
                   <tbody>
@@ -547,7 +547,7 @@ function App() {
                         <td>{formatAuditTime(entry.timestamp)}</td>
                         <td>{entry.action || "-"}</td>
                         <td>{entry.ip_address || "-"}</td>
-                        <td className="text-sm text-gray" title={entry.user_agent || "-"}>
+                        <td className="text-sm text-gray mobile-hide" title={entry.user_agent || "-"}>
                           {entry.user_agent || "-"}
                         </td>
                       </tr>

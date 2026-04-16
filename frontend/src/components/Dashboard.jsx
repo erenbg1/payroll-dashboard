@@ -226,9 +226,9 @@ const Dashboard = ({ data, previousMonthData = [] }) => {
                             <th>Name</th>
                             <th>Personal-Nr</th>
                             <th className="text-right">Auszahlung</th>
-                            <th className="text-right">Δ Previous Month</th>
+                            <th className="text-right mobile-hide">Δ Previous Month</th>
                             <th>Keywords</th>
-                            <th>Page</th>
+                            <th className="mobile-hide">Page</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -239,7 +239,7 @@ const Dashboard = ({ data, previousMonthData = [] }) => {
                                 <td className="text-right font-bold">
                                     {formatCurrency(row._payoutValue)}
                                 </td>
-                                <td className={`text-right font-bold ${row._deltaClassName}`}>
+                                <td className={`text-right font-bold mobile-hide ${row._deltaClassName}`}>
                                     {row._deltaDisplay}
                                 </td>
                                 <td>
@@ -249,7 +249,7 @@ const Dashboard = ({ data, previousMonthData = [] }) => {
                                         <span className="text-gray-light">-</span>
                                     )}
                                 </td>
-                                <td className="text-sm text-gray">{row.Page}</td>
+                                <td className="text-sm text-gray mobile-hide">{row.Page}</td>
                             </tr>
                         ))}
                         {filteredData.length === 0 && (

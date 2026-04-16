@@ -25,6 +25,7 @@ body {
   background-color: var(--bg-color);
   color: var(--text-main);
   line-height: 1.5;
+  min-width: 320px;
 }
 
 /* Layout */
@@ -424,7 +425,8 @@ body {
 /* Table */
 .table-container {
   padding: 0;
-  overflow: hidden;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
 }
 
 table {
@@ -550,4 +552,174 @@ td {
   /* Move it higher */
   border-top: 1px solid var(--border-color);
   background: var(--card-bg);
+}
+
+@media (max-width: 900px) {
+  .app-header {
+    padding: 1.25rem 1rem;
+  }
+
+  .header-content {
+    align-items: flex-start;
+    justify-content: flex-start;
+  }
+
+  .app-main {
+    padding: 1.25rem 1rem;
+  }
+
+  .welcome-card {
+    padding: 2rem 1.25rem;
+  }
+
+  .upload-section {
+    padding-top: 1rem;
+  }
+
+  .upload-container {
+    padding: 2rem 1.25rem;
+  }
+
+  .toolbar-row {
+    align-items: stretch;
+  }
+
+  .toolbar-group {
+    width: 100%;
+  }
+
+  .toolbar-select {
+    width: 100%;
+  }
+
+  .toolbar-button {
+    width: 100%;
+  }
+
+  .tab-row {
+    flex-wrap: wrap;
+  }
+
+  .tab-button {
+    flex: 1 1 180px;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 640px) {
+  .app-header {
+    padding: 1rem 0.875rem;
+  }
+
+  .header-content {
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    gap: 0.9rem;
+  }
+
+  .app-logo {
+    height: 52px;
+  }
+
+  .header-content h1 {
+    font-size: 1.25rem;
+  }
+
+  .header-content p {
+    font-size: 0.8125rem;
+  }
+
+  .app-main {
+    padding: 1rem 0.75rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .welcome-card {
+    padding: 1.5rem 1rem;
+    border-radius: 14px;
+  }
+
+  .auth-card {
+    max-width: 100%;
+  }
+
+  .upload-container {
+    padding: 1.5rem 1rem;
+  }
+
+  .stats-grid {
+    gap: 1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .stat-card {
+    align-items: flex-start;
+  }
+
+  .stat-value {
+    font-size: 1.25rem;
+  }
+
+  .controls-bar {
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+
+  .search-wrapper,
+  .filters-wrapper,
+  .btn-secondary {
+    width: 100%;
+  }
+
+  .filters-wrapper select,
+  .btn-secondary {
+    width: 100%;
+  }
+
+  .btn-secondary {
+    justify-content: center;
+  }
+
+  .toolbar-section {
+    margin-bottom: 1.25rem;
+  }
+
+  .toolbar-row {
+    gap: 0.75rem;
+  }
+
+  .toolbar-group {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.35rem;
+  }
+
+  .tab-row {
+    gap: 0.5rem;
+  }
+
+  .tab-button {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  th,
+  td {
+    padding: 0.75rem 0.75rem;
+    font-size: 0.8125rem;
+  }
+
+  .mobile-hide {
+    display: none;
+  }
+
+  .app-footer {
+    padding: 1rem 0.75rem;
+    font-size: 0.8125rem;
+    margin-bottom: 0;
+  }
 }
