@@ -63,7 +63,7 @@ def _extract_page_texts(pdf_file):
     pdf_bytes = _read_pdf_bytes(pdf_file)
     last_error = None
 
-    for extractor in (_extract_texts_with_pdfplumber, _extract_texts_with_pypdf):
+    for extractor in (_extract_texts_with_pypdf, _extract_texts_with_pdfplumber):
         try:
             page_texts = extractor(pdf_bytes)
             if page_texts:
