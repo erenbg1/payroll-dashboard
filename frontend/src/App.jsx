@@ -1,8 +1,18 @@
-import React, { useMemo, useState } from 'react';
+import React, { useCallback, useMemo, useState } from 'react';
 import FileUpload from './components/FileUpload';
 import Dashboard from './components/Dashboard';
-import { History, Table2, X } from 'lucide-react';
-import { deleteDataset, listDatasets, listHistory, loadMonth, saveMonth, uploadFiles } from './api';
+import { Eye, EyeOff, History, Table2 } from 'lucide-react';
+import {
+  getAuthStatus,
+  getStoredAuthToken,
+  listDatasets,
+  listHistory,
+  loadMonth,
+  login,
+  saveMonth,
+  setStoredAuthToken,
+  uploadFiles,
+} from './api';
 import './App.css';
 
 import logo from './assets/logo.png';
@@ -84,6 +94,31 @@ const buildDisplayVersion = (dataset) => {
   return version;
 };
 
+const isUnauthorizedError = (error) => error?.response?.status === 401;
+
+const formatAuditDate = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleDateString("de-DE", {
+    day: "2-digit",
+    month: "2-digit",
+    year: "numeric",
+  });
+};
+
+const formatAuditTime = (value) => {
+  if (!value) return "-";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "-";
+
+  return date.toLocaleTimeString([], {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
+};
+
 function App() {
   const [data, setData] = useState([]);
   const [isProcessing, setIsProcessing] = useState(false);
@@ -96,7 +131,15 @@ function App() {
   const [previousMonthData, setPreviousMonthData] = useState([]);
   const [activeTab, setActiveTab] = useState("dashboard");
   const [isSaving, setIsSaving] = useState(false);
-  const [isDeletingId, setIsDeletingId] = useState("");
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isCheckingAuth, setIsCheckingAuth] = useState(true);
+  const [isAuthenticating, setIsAuthenticating] = useState(false);
+  const [authPassword, setAuthPassword] = useState("");
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
+  const [authError, setAuthError] = useState("");
+  const [authAttemptsUsed, setAuthAttemptsUsed] = useState(0);
+  const [authMaxAttempts, setAuthMaxAttempts] = useState(3);
+  const [authBlockedUntil, setAuthBlockedUntil] = useState(0);
 
   const currentMonth = useMemo(() => {
     if (currentDatasetMeta?.month) {
@@ -117,33 +160,140 @@ function App() {
     return [...datasets].sort((left, right) => right.savedAt.localeCompare(left.savedAt));
   }, [datasets]);
 
-  React.useEffect(() => {
-    const loadInitialState = async () => {
-      await Promise.all([refreshDatasets(), refreshHistory()]);
-    };
+  const handleUnauthorized = (message = "Your session expired. Please enter the password again.") => {
+    setStoredAuthToken(null);
+    setIsAuthenticated(false);
+    setIsCheckingAuth(false);
+    setAuthError(message);
+    setData([]);
+    setDatasets([]);
+    setHistoryEntries([]);
+    setSelectedDatasetId("");
+    setCurrentDatasetMeta(null);
+    setPreviousMonthData([]);
+    setActiveTab("dashboard");
+  };
 
-    loadInitialState();
-  }, []);
+  const formatBlockedUntil = (timestampSeconds) => {
+    if (!timestampSeconds) {
+      return "";
+    }
 
-  const refreshDatasets = async () => {
+    return new Date(timestampSeconds * 1000).toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  };
+
+  const refreshDatasets = useCallback(async () => {
     try {
       const datasetsRes = await listDatasets();
       if (datasetsRes?.datasets) {
         setDatasets(datasetsRes.datasets);
       }
     } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to load saved datasets", e);
     }
-  };
+  }, []);
 
-  const refreshHistory = async () => {
+  const refreshHistory = useCallback(async () => {
     try {
       const res = await listHistory();
       if (res?.history) {
         setHistoryEntries(res.history);
       }
     } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to load history log", e);
+    }
+  }, []);
+
+  React.useEffect(() => {
+    const verifySession = async () => {
+      const token = getStoredAuthToken();
+      if (!token) {
+        setIsCheckingAuth(false);
+        return;
+      }
+
+      try {
+        await getAuthStatus();
+        setIsAuthenticated(true);
+      } catch {
+        setStoredAuthToken(null);
+        setIsAuthenticated(false);
+      } finally {
+        setIsCheckingAuth(false);
+      }
+    };
+
+    verifySession();
+  }, []);
+
+  React.useEffect(() => {
+    if (!isAuthenticated) {
+      return;
+    }
+
+    const loadInitialState = async () => {
+      await Promise.all([refreshDatasets(), refreshHistory()]);
+    };
+
+    loadInitialState();
+  }, [isAuthenticated, refreshDatasets, refreshHistory]);
+
+  const handleLogin = async (event) => {
+    event.preventDefault();
+
+    if (!authPassword.trim()) {
+      setAuthError("Enter the dashboard password.");
+      return;
+    }
+
+    setIsAuthenticating(true);
+    setAuthError("");
+
+    try {
+      const result = await login(authPassword);
+      setStoredAuthToken(result?.token || "");
+      setIsAuthenticated(true);
+      setAuthPassword("");
+      setAuthAttemptsUsed(0);
+      setAuthMaxAttempts(result?.maxAttempts || 3);
+      setAuthBlockedUntil(0);
+      await Promise.all([refreshDatasets(), refreshHistory()]);
+    } catch (e) {
+      const detail = e?.response?.data?.detail;
+      const attemptsUsed = detail?.attemptsUsed ?? 0;
+      const maxAttempts = detail?.maxAttempts ?? 3;
+      const blockedUntil = detail?.blockedUntil ?? 0;
+
+      setAuthAttemptsUsed(attemptsUsed);
+      setAuthMaxAttempts(maxAttempts);
+      setAuthBlockedUntil(blockedUntil);
+
+      if (e?.response?.status === 429) {
+        const blockedText = formatBlockedUntil(blockedUntil);
+        setAuthError(
+          blockedText
+            ? `Too many attempts. Try again after ${blockedText}.`
+            : "Too many attempts. Try again later."
+        );
+      } else {
+        setAuthError("Incorrect password.");
+      }
+      setStoredAuthToken(null);
+      setIsAuthenticated(false);
+    } finally {
+      setIsCheckingAuth(false);
+      setIsAuthenticating(false);
     }
   };
 
@@ -164,8 +314,12 @@ function App() {
           setPreviousMonthData([]);
         }
       }
-    } catch {
-      setError("Failed to process files. Please try again.");
+    } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+      } else {
+        setError("Failed to process files. Please try again.");
+      }
     } finally {
       setIsProcessing(false);
     }
@@ -192,6 +346,10 @@ function App() {
       const res = await loadMonth(candidateDatasets[0].id);
       setPreviousMonthData(Array.isArray(res?.data) ? res.data : []);
     } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+        return;
+      }
       console.error("Failed to load previous month data", e);
       setPreviousMonthData([]);
     }
@@ -221,8 +379,12 @@ function App() {
       setSelectedDatasetId(saved?.id || "");
       await loadPreviousMonthData(currentMonth);
       alert(`Saved ${saved?.version || currentMonth} successfully!`);
-    } catch {
-      alert("Failed to save data.");
+    } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+      } else {
+        alert("Failed to save data.");
+      }
     } finally {
       setIsSaving(false);
     }
@@ -240,29 +402,12 @@ function App() {
         setSelectedDatasetId(res.metadata.id || datasetId);
         await loadPreviousMonthData(res.metadata.month || "");
       }
-    } catch {
-      alert("Failed to load month.");
-    }
-  };
-
-  const handleDelete = async (datasetId) => {
-    if (!datasetId) return;
-    if (!window.confirm("Delete this saved dataset?")) return;
-
-    setIsDeletingId(datasetId);
-    try {
-      await deleteDataset(datasetId);
-      if (selectedDatasetId === datasetId) {
-        setData([]);
-        setSelectedDatasetId("");
-        setCurrentDatasetMeta(null);
-        setPreviousMonthData([]);
+    } catch (e) {
+      if (isUnauthorizedError(e)) {
+        handleUnauthorized();
+      } else {
+        alert("Failed to load month.");
       }
-      await Promise.all([refreshDatasets(), refreshHistory()]);
-    } catch {
-      alert("Failed to delete dataset.");
-    } finally {
-      setIsDeletingId("");
     }
   };
 
@@ -279,128 +424,165 @@ function App() {
       </header>
 
       <main className="app-main">
-        {error && (
-          <div className="error-banner">
-            {error}
-          </div>
-        )}
-
-        <div className="history-section card toolbar-section">
-          <div className="toolbar-row">
-            <div className="toolbar-group">
-              <span className="toolbar-label">Current Month:</span>
-              <span className="toolbar-value">{currentMonth || "-"}</span>
-            </div>
-
-            <div className="toolbar-group">
-              <span className="toolbar-label">Load Version:</span>
-              <select
-                value={selectedDatasetId}
-                onChange={(e) => handleLoad(e.target.value)}
-                className="toolbar-select"
-                disabled={visibleDatasets.length === 0}
-              >
-                <option value="">{visibleDatasets.length ? "Select saved version..." : "No saved versions"}</option>
-                {visibleDatasets.map((dataset) => (
-                  <option key={dataset.id} value={dataset.id}>
-                    {buildDisplayVersion(dataset)}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <button
-              onClick={handleSave}
-              disabled={!currentMonth || !data.length || isSaving}
-              className="btn-primary toolbar-button"
-            >
-              {isSaving ? "Saving..." : "Save Month"}
-            </button>
-          </div>
-
-          <div className="tab-row">
-            <button
-              className={`tab-button ${activeTab === "dashboard" ? "tab-button-active" : ""}`}
-              onClick={() => setActiveTab("dashboard")}
-            >
-              <Table2 size={16} /> Dashboard
-            </button>
-            <button
-              className={`tab-button ${activeTab === "history" ? "tab-button-active" : ""}`}
-              onClick={() => setActiveTab("history")}
-            >
-              <History size={16} /> History
-            </button>
-          </div>
-        </div>
-
-        {activeTab === "history" ? (
-          <div className="card table-container">
-            <table>
-              <thead>
-                <tr>
-                  <th>Date</th>
-                  <th>Month</th>
-                  <th>Version</th>
-                  <th>IP Address</th>
-                  <th>Action</th>
-                  <th className="text-right">Delete</th>
-                </tr>
-              </thead>
-              <tbody>
-                {historyEntries.map((entry) => (
-                  <tr key={entry.id}>
-                    <td>{entry.date || "-"}</td>
-                    <td>{entry.month || "-"}</td>
-                    <td>{entry.version || "-"}</td>
-                    <td>{entry.ipAddress || "-"}</td>
-                    <td>{entry.action}</td>
-                    <td className="text-right">
-                      {entry.canDelete ? (
-                        <button
-                          type="button"
-                          className="icon-button danger"
-                          onClick={() => handleDelete(entry.datasetId)}
-                          disabled={isDeletingId === entry.datasetId}
-                          aria-label={`Delete ${entry.version}`}
-                        >
-                          <X size={16} />
-                        </button>
-                      ) : (
-                        <span className="text-gray-light">-</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
-                {historyEntries.length === 0 && (
-                  <tr>
-                    <td colSpan="6" className="text-center py-8 text-gray">
-                      No history entries found.
-                    </td>
-                  </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
-        ) : data.length === 0 ? (
+        {isCheckingAuth ? (
           <div className="upload-section">
-            <div className="welcome-card">
-              <h2>Upload Payroll Documents</h2>
-              <p>Upload payroll PDFs to extract employee payout data</p>
-              <FileUpload onUpload={handleUpload} isProcessing={isProcessing} />
+            <div className="welcome-card auth-card">
+              <h2>Checking Access</h2>
+              <p>Verifying dashboard session</p>
+            </div>
+          </div>
+        ) : !isAuthenticated ? (
+          <div className="upload-section">
+            <div className="welcome-card auth-card">
+              <h2>Protected Dashboard</h2>
+              <p>Enter the dashboard password to access payroll records</p>
+              <form className="auth-form" onSubmit={handleLogin}>
+                <div className="auth-input-wrapper">
+                  <input
+                    type={isPasswordVisible ? "text" : "password"}
+                    value={authPassword}
+                    onChange={(e) => setAuthPassword(e.target.value)}
+                    placeholder="Password"
+                    className="auth-input"
+                    autoComplete="current-password"
+                    disabled={Boolean(authBlockedUntil && authBlockedUntil > Math.floor(Date.now() / 1000))}
+                  />
+                  <button
+                    type="button"
+                    className="auth-visibility-toggle"
+                    onClick={() => setIsPasswordVisible((visible) => !visible)}
+                    aria-label={isPasswordVisible ? "Hide password" : "Show password"}
+                    disabled={Boolean(authBlockedUntil && authBlockedUntil > Math.floor(Date.now() / 1000))}
+                  >
+                    {isPasswordVisible ? <EyeOff size={18} /> : <Eye size={18} />}
+                  </button>
+                </div>
+                <button
+                  type="submit"
+                  className="btn-primary auth-button"
+                  disabled={isAuthenticating || Boolean(authBlockedUntil && authBlockedUntil > Math.floor(Date.now() / 1000))}
+                >
+                  {isAuthenticating ? "Checking..." : "Unlock Dashboard"}
+                </button>
+              </form>
+              <p className="auth-attempts">
+                {authAttemptsUsed}/{authMaxAttempts} attempts used
+              </p>
+              {authError && <p className="auth-error">{authError}</p>}
             </div>
           </div>
         ) : (
-          <div className="dashboard-section">
-            <div className="dashboard-header">
-              <button className="btn-text" onClick={() => setData([])}>← Upload New Files</button>
+          <>
+            {error && (
+              <div className="error-banner">
+                {error}
+              </div>
+            )}
+
+            <div className="history-section card toolbar-section">
+              <div className="toolbar-row">
+                <div className="toolbar-group">
+                  <span className="toolbar-label">Current Month:</span>
+                  <span className="toolbar-value">{currentMonth || "-"}</span>
+                </div>
+
+                <div className="toolbar-group">
+                  <span className="toolbar-label">Load Version:</span>
+                  <select
+                    value={selectedDatasetId}
+                    onChange={(e) => handleLoad(e.target.value)}
+                    className="toolbar-select"
+                    disabled={visibleDatasets.length === 0}
+                  >
+                    <option value="">{visibleDatasets.length ? "Select saved version..." : "No saved versions"}</option>
+                    {visibleDatasets.map((dataset) => (
+                      <option key={dataset.id} value={dataset.id}>
+                        {buildDisplayVersion(dataset)}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <button
+                  onClick={handleSave}
+                  disabled={!currentMonth || !data.length || isSaving}
+                  className="btn-primary toolbar-button"
+                >
+                  {isSaving ? "Saving..." : "Save Month"}
+                </button>
+              </div>
+
+              <div className="tab-row">
+                <button
+                  className={`tab-button ${activeTab === "dashboard" ? "tab-button-active" : ""}`}
+                  onClick={() => setActiveTab("dashboard")}
+                >
+                  <Table2 size={16} /> Dashboard
+                </button>
+                <button
+                  className={`tab-button ${activeTab === "history" ? "tab-button-active" : ""}`}
+                  onClick={() => setActiveTab("history")}
+                >
+                  <History size={16} /> History
+                </button>
+              </div>
             </div>
-            <Dashboard
-              data={data}
-              previousMonthData={previousMonthData}
-              currentDatasetMeta={currentDatasetMeta}
-            />
-          </div>
+
+            {activeTab === "history" ? (
+              <div className="card table-container">
+                <table>
+                  <thead>
+                    <tr>
+                      <th>Date</th>
+                      <th>Time</th>
+                      <th>Action</th>
+                      <th>IP Address</th>
+                      <th>User Agent</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {historyEntries.map((entry) => (
+                      <tr key={entry.id}>
+                        <td>{formatAuditDate(entry.timestamp)}</td>
+                        <td>{formatAuditTime(entry.timestamp)}</td>
+                        <td>{entry.action || "-"}</td>
+                        <td>{entry.ip_address || "-"}</td>
+                        <td className="text-sm text-gray" title={entry.user_agent || "-"}>
+                          {entry.user_agent || "-"}
+                        </td>
+                      </tr>
+                    ))}
+                    {historyEntries.length === 0 && (
+                      <tr>
+                        <td colSpan="5" className="text-center py-8 text-gray">
+                          No history yet
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            ) : data.length === 0 ? (
+              <div className="upload-section">
+                <div className="welcome-card">
+                  <h2>Upload Payroll Documents</h2>
+                  <p>Upload payroll PDFs to extract employee payout data</p>
+                  <FileUpload onUpload={handleUpload} isProcessing={isProcessing} />
+                </div>
+              </div>
+            ) : (
+              <div className="dashboard-section">
+                <div className="dashboard-header">
+                  <button className="btn-text" onClick={() => setData([])}>← Upload New Files</button>
+                </div>
+                <Dashboard
+                  data={data}
+                  previousMonthData={previousMonthData}
+                  currentDatasetMeta={currentDatasetMeta}
+                />
+              </div>
+            )}
+          </>
         )}
       </main>
 

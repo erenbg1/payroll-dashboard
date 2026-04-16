@@ -107,6 +107,77 @@ body {
   margin-bottom: 2rem;
 }
 
+.auth-card {
+  max-width: 460px;
+}
+
+.auth-form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.auth-input-wrapper {
+  position: relative;
+}
+
+.auth-input {
+  width: 100%;
+  padding: 0.8rem 2.9rem 0.8rem 0.95rem;
+  border: 1px solid var(--border-color);
+  border-radius: 8px;
+  font-size: 0.95rem;
+  color: var(--text-main);
+  background: white;
+}
+
+.auth-input:focus {
+  outline: none;
+  border-color: var(--primary);
+  box-shadow: 0 0 0 3px rgb(46 125 50 / 0.12);
+}
+
+.auth-button {
+  width: 100%;
+}
+
+.auth-visibility-toggle {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+}
+
+.auth-visibility-toggle:hover {
+  color: var(--text-main);
+}
+
+.auth-visibility-toggle:disabled {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.auth-attempts {
+  color: var(--text-muted);
+  font-size: 0.875rem;
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
+.auth-error {
+  color: #991b1b;
+  margin-top: 1rem;
+  margin-bottom: 0;
+}
+
 /* File Upload Component */
 .upload-container {
   border: 2px dashed var(--border-color);

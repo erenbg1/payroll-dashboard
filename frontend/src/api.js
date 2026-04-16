@@ -1,6 +1,29 @@
 import axios from 'axios';
 
 const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+const AUTH_STORAGE_KEY = 'trel-payroll-auth-token';
+
+const apiClient = axios.create({
+    baseURL: API_URL,
+});
+
+apiClient.interceptors.request.use((config) => {
+    const token = window.sessionStorage.getItem(AUTH_STORAGE_KEY);
+    if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+    }
+    return config;
+});
+
+export const getStoredAuthToken = () => window.sessionStorage.getItem(AUTH_STORAGE_KEY);
+
+export const setStoredAuthToken = (token) => {
+    if (token) {
+        window.sessionStorage.setItem(AUTH_STORAGE_KEY, token);
+    } else {
+        window.sessionStorage.removeItem(AUTH_STORAGE_KEY);
+    }
+};
 
 export const uploadFiles = async (files) => {
     const formData = new FormData();
@@ -9,7 +32,7 @@ export const uploadFiles = async (files) => {
     });
 
     try {
-        const response = await axios.post(`${API_URL}/upload`, formData, {
+        const response = await apiClient.post('/upload', formData, {
             headers: {
                 'Content-Type': 'multipart/form-data',
             },
@@ -23,7 +46,7 @@ export const uploadFiles = async (files) => {
 
 export const saveMonth = async (month, data) => {
     try {
-        const response = await axios.post(`${API_URL}/save-month`, { month, data });
+        const response = await apiClient.post('/save-month', { month, data });
         return response.data;
     } catch (error) {
         console.error('Error saving month:', error);
@@ -33,7 +56,7 @@ export const saveMonth = async (month, data) => {
 
 export const listMonths = async () => {
     try {
-        const response = await axios.get(`${API_URL}/list-months`);
+        const response = await apiClient.get('/list-months');
         return response.data; // { months: [...] }
     } catch (error) {
         console.error('Error listing months:', error);
@@ -43,7 +66,7 @@ export const listMonths = async () => {
 
 export const loadMonth = async (month) => {
     try {
-        const response = await axios.get(`${API_URL}/load-month/${month}`);
+        const response = await apiClient.get(`/load-month/${month}`);
         return response.data; // { data: [...] }
     } catch (error) {
         console.error('Error loading month:', error);
@@ -53,7 +76,7 @@ export const loadMonth = async (month) => {
 
 export const listDatasets = async () => {
     try {
-        const response = await axios.get(`${API_URL}/datasets`);
+        const response = await apiClient.get('/datasets');
         return response.data;
     } catch (error) {
         console.error('Error listing datasets:', error);
@@ -63,7 +86,7 @@ export const listDatasets = async () => {
 
 export const listHistory = async () => {
     try {
-        const response = await axios.get(`${API_URL}/history`);
+        const response = await apiClient.get('/history');
         return response.data;
     } catch (error) {
         console.error('Error loading history:', error);
@@ -71,12 +94,12 @@ export const listHistory = async () => {
     }
 };
 
-export const deleteDataset = async (datasetId) => {
-    try {
-        const response = await axios.delete(`${API_URL}/dataset/${datasetId}`);
-        return response.data;
-    } catch (error) {
-        console.error('Error deleting dataset:', error);
-        throw error;
-    }
+export const login = async (password) => {
+    const response = await apiClient.post('/auth/login', { password });
+    return response.data;
+};
+
+export const getAuthStatus = async () => {
+    const response = await apiClient.get('/auth/status');
+    return response.data;
 };
